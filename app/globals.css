@@ -1,0 +1,144 @@
+/* ==========================================================================
+   Tracked — design tokens
+   Values are transcribed from design-reference/.../README.md ("Design System"
+   and "Color Theme"); the base design system's dark chrome plus this app's
+   nutrition-themed green overrides.
+   ========================================================================== */
+
+:root {
+  /* Brand overrides (nutrition palette) */
+  --primary-100: oklch(58% 0.15 148);   /* fresh green — primary actions, active nav, links */
+  --accent-200:  oklch(91% 0.06 148);   /* soft green — hero "Calories" card */
+  --accent-400:  oklch(42% 0.13 148);   /* deep green — link hover */
+
+  /* Macro fills */
+  --macro-protein: oklch(78% 0.09 25);  /* coral */
+  --macro-carbs:   oklch(82% 0.12 80);  /* golden */
+  --macro-fat:     oklch(80% 0.11 95);  /* warm yellow */
+
+  /* Base dark chrome */
+  --gray-600: #121212;                  /* app background */
+  --gray-500: #232220;                  /* elevated cards, list rows */
+  --gray-400: #2F2F2F;                  /* nav pill background, input borders */
+  --gray-300: #474747;                  /* inactive nav slot */
+  --gray-100: #FFFFFF;
+
+  --bg-app: var(--gray-600);
+  --text-primary: var(--gray-100);
+  --text-secondary: #C3C3C3;
+  --message-error: #C93838;
+  --surface-scan: #1A1F16;
+
+  /* Geometry */
+  --radius-md: 12px;                    /* buttons, inputs */
+  --radius-lg: 16px;                    /* macro tiles, list rows */
+  --radius-xl: 24px;                    /* hero + analysis cards */
+  --radius-pill: 100px;
+
+  /* Motion */
+  --duration-base: 200ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+
+  --shadow-nav: 0 8px 24px rgba(0, 0, 0, 0.45);
+
+  /* Canvas */
+  --canvas-w: 428px;
+  --canvas-h: 926px;
+  --status-h: 47px;
+  --gutter: 20px;
+
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: #F2F2F2;
+  font-family: var(--font-core), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Installed to the home screen: the phone *is* the canvas. */
+@media (display-mode: standalone), (display-mode: fullscreen) {
+  html, body { background: var(--bg-app); overscroll-behavior: none; }
+}
+
+::-webkit-scrollbar { width: 0; height: 0; }
+button { font-family: inherit; }
+input { font-family: inherit; }
+a { color: var(--primary-100); text-decoration: none; }
+a:hover { color: var(--accent-400); }
+
+@keyframes tracked-spin { to { transform: rotate(360deg); } }
+
+/* ==========================================================================
+   Phone canvas
+   428×926 design canvas. On a desktop browser it renders as a centered phone
+   frame (as in the design reference); on a phone — and always once installed
+   to the home screen — it fills the viewport.
+   ========================================================================== */
+
+.shell {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: #F2F2F2;
+}
+
+.canvas {
+  position: relative;
+  width: var(--canvas-w);
+  height: var(--canvas-h);
+  overflow: hidden;
+  border-radius: 44px;
+  background: var(--bg-app);
+}
+
+@media (max-width: 520px), (display-mode: standalone), (display-mode: fullscreen) {
+  .shell { background: var(--bg-app); align-items: stretch; }
+  .canvas {
+    width: 100%;
+    max-width: var(--canvas-w);
+    height: 100dvh;
+    border-radius: 0;
+    margin: 0 auto;
+  }
+}
+
+/* The mock OS chrome is a desktop-preview affordance; on a real device the
+   platform draws its own status bar, so we only reserve the safe area. */
+.statusbar {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: var(--status-h);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 28px;
+  font-family: -apple-system, "SF Pro Text", system-ui, sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  z-index: 30;
+  pointer-events: none;
+}
+
+@media (display-mode: standalone), (display-mode: fullscreen) {
+  :root { --status-h: max(env(safe-area-inset-top), 12px); }
+  .statusbar { display: none; }
+}
+
+.scrollarea {
+  position: absolute;
+  top: var(--status-h);
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
