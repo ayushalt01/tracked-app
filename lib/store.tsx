@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 
 import { createClient } from '@/lib/supabase/client';
 import { goalsToRow, mealFromRow, MICRO_DEFS } from '@/lib/data';
+import { dataUrlToBlob } from '@/lib/image';
 import type { AppState, Analysis, Goals, Meal, MealRow, Profile } from '@/lib/types';
 
 type Ctx = {
@@ -24,16 +25,6 @@ export function useApp() {
   const ctx = useContext(AppContext);
   if (!ctx) throw new Error('useApp must be used inside <AppStateProvider>');
   return ctx;
-}
-
-/** Turns a `data:` URL back into a Blob for upload to Supabase Storage. */
-function dataUrlToBlob(dataUrl: string): Blob {
-  const [header, body] = dataUrl.split(',');
-  const mime = /:(.*?);/.exec(header)?.[1] ?? 'image/jpeg';
-  const binary = atob(body);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return new Blob([bytes], { type: mime });
 }
 
 export function AppStateProvider({

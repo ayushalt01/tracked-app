@@ -99,11 +99,14 @@ export function MacroCard({
   value,
   unit,
   color,
+  onChange,
 }: {
   label: string;
   value: number | string;
   unit: string;
   color: string;
+  /** When given, the value becomes correctable in place. */
+  onChange?: (v: number) => void;
 }) {
   return (
     <div
@@ -116,7 +119,16 @@ export function MacroCard({
     >
       <div style={{ fontSize: 15, lineHeight: '22px', fontWeight: 600 }}>{label}</div>
       <div style={{ fontSize: 20, lineHeight: '30px', fontWeight: 700 }}>
-        {value}
+        {onChange ? (
+          <InlineNumber
+            value={Number(value)}
+            onChange={onChange}
+            label={label}
+            underline="rgba(18,18,18,0.3)"
+          />
+        ) : (
+          value
+        )}
         {unit}
       </div>
     </div>
@@ -128,18 +140,85 @@ export function MacroRow({
   carbs,
   fat,
   marginTop = 16,
+  onChange,
 }: {
   protein: number;
   carbs: number;
   fat: number;
   marginTop?: number;
+  /** When given, each macro becomes correctable in place. */
+  onChange?: (key: 'protein' | 'carbs' | 'fat', value: number) => void;
 }) {
   return (
     <div style={{ marginTop, display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12 }}>
-      <MacroCard label="Protein" value={protein} unit="g" color={macroColors.protein} />
-      <MacroCard label="Carbs" value={carbs} unit="g" color={macroColors.carbs} />
-      <MacroCard label="Fat" value={fat} unit="g" color={macroColors.fat} />
+      <MacroCard
+        label="Protein"
+        value={protein}
+        unit="g"
+        color={macroColors.protein}
+        onChange={onChange && ((v) => onChange('protein', v))}
+      />
+      <MacroCard
+        label="Carbs"
+        value={carbs}
+        unit="g"
+        color={macroColors.carbs}
+        onChange={onChange && ((v) => onChange('carbs', v))}
+      />
+      <MacroCard
+        label="Fat"
+        value={fat}
+        unit="g"
+        color={macroColors.fat}
+        onChange={onChange && ((v) => onChange('fat', v))}
+      />
     </div>
+  );
+}
+
+// ------------------------------------------------------------ InlineNumber --
+
+/**
+ * A number that reads as text but can be corrected in place. Used for the
+ * calorie, macro and micronutrient values on the Scan Result screen.
+ */
+export function InlineNumber({
+  value,
+  onChange,
+  label,
+  underline,
+  style,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+  label: string;
+  /** Colour of the dashed affordance under the value. */
+  underline: string;
+  style?: CSSProperties;
+}) {
+  const shown = Number.isFinite(value) ? value : 0;
+  return (
+    <input
+      type="number"
+      inputMode="decimal"
+      min={0}
+      value={String(shown)}
+      aria-label={label}
+      onChange={(e) => onChange(Math.max(0, Number(e.target.value) || 0))}
+      onFocus={(e) => e.target.select()}
+      style={{
+        font: 'inherit',
+        color: 'inherit',
+        background: 'transparent',
+        border: 0,
+        borderBottom: `1px dashed ${underline}`,
+        outline: 'none',
+        padding: 0,
+        borderRadius: 0,
+        width: `${Math.max(1, String(shown).length)}ch`,
+        ...style,
+      }}
+    />
   );
 }
 

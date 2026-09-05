@@ -5,9 +5,10 @@ import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { BackButton, Frame } from '@/components/Shell';
-import { Button, MacroRow, ProgressBar } from '@/components/ui';
+import { Button, InlineNumber, MacroRow, ProgressBar, SectionTitle } from '@/components/ui';
 import { IcChevron } from '@/components/icons';
 import { MICRO_DEFS } from '@/lib/data';
+import { dataUrlToBlob } from '@/lib/image';
 import {
   clearPendingScan,
   getPendingScan,
@@ -15,6 +16,7 @@ import {
   subscribePendingScan,
 } from '@/lib/pending';
 import { useApp } from '@/lib/store';
+import type { Analysis, RefineTurn } from '@/lib/types';
 
 export default function ResultScreen() {
   const router = useRouter();
@@ -28,11 +30,17 @@ export default function ResultScreen() {
     getPendingScanServerSnapshot,
   );
 
+  // Corrections layer over the AI's estimate — from hand edits or from refine.
+  const [corrected, setCorrected] = useState<Analysis | null>(null);
   const [editedName, setEditedName] = useState<string | null>(null);
+  const [turns, setTurns] = useState<RefineTurn[]>([]);
+  const [note, setNote] = useState('');
+  const [refining, setRefining] = useState(false);
   const [microOpen, setMicroOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const leaving = useRef(false);
+  const chatEnd = useRef<HTMLDivElement>(null);
 
   // Landing here with no scan at all (a direct link, or a discarded one) means
   // start over. Re-read the store directly: on a reload the hydration render
@@ -46,8 +54,12 @@ export default function ResultScreen() {
     return <Frame active="scan"><div /></Frame>;
   }
 
-  const a = pending.analysis;
-  const name = editedName ?? a.name ?? 'Meal';
+  const values = corrected ?? pending.analysis;
+  const name = editedName ?? values.name ?? 'Meal';
+
+  function setField(key: keyof Analysis, value: number) {
+    setCorrected({ ...values, [key]: value });
+  }
 
   function retake() {
     leaving.current = true;
@@ -55,12 +67,46 @@ export default function ResultScreen() {
     router.replace('/scan');
   }
 
+  async function sendCorrection() {
+    const text = note.trim();
+    if (!text || refining || !pending) return;
+
+    setRefining(true);
+    setError(null);
+    setNote('');
+    const sent: RefineTurn[] = [...turns, { role: 'user', text }];
+    setTurns(sent);
+
+    try {
+      const form = new FormData();
+      form.append('image', dataUrlToBlob(pending.photo), 'meal.jpg');
+      form.append('note', text);
+      form.append('current', JSON.stringify(values));
+      form.append('history', JSON.stringify(turns));
+
+      const res = await fetch('/api/refine-meal', { method: 'POST', body: form });
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(payload?.error || 'Could not apply that correction.');
+
+      setCorrected(payload.analysis as Analysis);
+      setEditedName(null); // let a re-identified dish rename itself
+      setTurns([...sent, { role: 'model', text: payload.reply, analysis: payload.analysis }]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not apply that correction.');
+      setTurns(turns); // drop the unanswered message so it can be retried
+      setNote(text);
+    } finally {
+      setRefining(false);
+      requestAnimationFrame(() => chatEnd.current?.scrollIntoView({ behavior: 'smooth' }));
+    }
+  }
+
   async function handleLog() {
     if (!pending || saving) return;
     setSaving(true);
     setError(null);
     try {
-      await logMeal(pending.analysis, name.trim() || 'Meal', pending.photo);
+      await logMeal({ ...values, name }, name.trim() || 'Meal', pending.photo);
       leaving.current = true;
       clearPendingScan();
       router.push('/home');
@@ -117,9 +163,9 @@ export default function ResultScreen() {
       </div>
 
       <div style={{ padding: '20px 20px 0 20px' }}>
-        {a.description && (
+        {values.description && (
           <div style={{ fontSize: 15, lineHeight: '22px', color: 'var(--text-secondary)' }}>
-            {a.description}
+            {values.description}
           </div>
         )}
 
@@ -136,15 +182,21 @@ export default function ResultScreen() {
             Calories
           </div>
           <div style={{ fontSize: 34, lineHeight: '51px', fontWeight: 700, color: 'var(--gray-600)' }}>
-            {Math.round(a.calories || 0).toLocaleString()}{' '}
+            <InlineNumber
+              value={Math.round(values.calories || 0)}
+              onChange={(v) => setField('calories', v)}
+              label="Calories"
+              underline="rgba(18,18,18,0.3)"
+            />{' '}
             <span style={{ fontSize: 17, lineHeight: '24px', fontWeight: 400 }}>kcal</span>
           </div>
         </div>
 
         <MacroRow
-          protein={Math.round(a.protein || 0)}
-          carbs={Math.round(a.carbs || 0)}
-          fat={Math.round(a.fat || 0)}
+          protein={Math.round(values.protein || 0)}
+          carbs={Math.round(values.carbs || 0)}
+          fat={Math.round(values.fat || 0)}
+          onChange={(key, v) => setField(key, v)}
         />
 
         {/* Micronutrients */}
@@ -189,7 +241,7 @@ export default function ResultScreen() {
             }}
           >
             {MICRO_DEFS.map((d) => {
-              const val = Math.round(a[d.key] || 0);
+              const val = Math.round(values[d.key] || 0);
               const goal = state.goals[d.key] || 1;
               return (
                 <div key={d.key}>
@@ -204,7 +256,13 @@ export default function ResultScreen() {
                     }}
                   >
                     <span>
-                      {d.label}: {val}
+                      {d.label}:{' '}
+                      <InlineNumber
+                        value={val}
+                        onChange={(v) => setField(d.key, v)}
+                        label={d.label}
+                        underline="rgba(255,255,255,0.3)"
+                      />
                       {d.unit}
                     </span>
                     <span style={{ color: 'var(--text-secondary)' }}>
@@ -217,6 +275,118 @@ export default function ResultScreen() {
             })}
           </div>
         )}
+
+        {/* Correction chat */}
+        <SectionTitle>Not quite right?</SectionTitle>
+        <div
+          style={{
+            marginTop: 12,
+            background: 'var(--gray-500)',
+            borderRadius: 'var(--radius-lg)',
+            padding: 16,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 12,
+          }}
+        >
+          {turns.length === 0 && !refining && (
+            <div style={{ fontSize: 13, lineHeight: '19px', color: 'var(--text-secondary)' }}>
+              Tell me what&rsquo;s off and I&rsquo;ll re-estimate — portion size, a missed ingredient,
+              how it was cooked. You can also tap any number above to set it yourself.
+            </div>
+          )}
+
+          {turns.map((turn, i) => (
+            <div
+              key={i}
+              style={{
+                alignSelf: turn.role === 'user' ? 'flex-end' : 'flex-start',
+                maxWidth: '85%',
+                padding: '8px 12px',
+                borderRadius: 12,
+                fontSize: 13,
+                lineHeight: '19px',
+                background: turn.role === 'user' ? 'var(--primary-100)' : 'rgba(255,255,255,0.07)',
+                color: turn.role === 'user' ? '#fff' : 'var(--text-primary)',
+              }}
+            >
+              {turn.text}
+            </div>
+          ))}
+
+          {refining && (
+            <div
+              style={{
+                alignSelf: 'flex-start',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                fontSize: 13,
+                color: 'var(--text-secondary)',
+              }}
+            >
+              <span
+                style={{
+                  width: 14,
+                  height: 14,
+                  borderRadius: '50%',
+                  border: '2px solid rgba(255,255,255,0.25)',
+                  borderTopColor: '#fff',
+                  animation: 'tracked-spin 0.8s linear infinite',
+                  display: 'inline-block',
+                }}
+              />
+              Re-estimating…
+            </div>
+          )}
+          <div ref={chatEnd} />
+
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <input
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  sendCorrection();
+                }
+              }}
+              placeholder="e.g. it was 2 eggs, no oil"
+              aria-label="Correction"
+              disabled={refining}
+              style={{
+                flex: 1,
+                minWidth: 0,
+                background: 'var(--gray-600)',
+                border: '1px solid var(--gray-400)',
+                borderRadius: 'var(--radius-md)',
+                padding: '10px 12px',
+                color: '#fff',
+                fontSize: 15,
+                outline: 'none',
+              }}
+            />
+            <button
+              onClick={sendCorrection}
+              disabled={refining || !note.trim()}
+              style={{
+                flexShrink: 0,
+                height: 40,
+                padding: '0 16px',
+                borderRadius: 'var(--radius-md)',
+                border: 0,
+                background: 'var(--primary-100)',
+                color: '#fff',
+                fontSize: 15,
+                fontWeight: 600,
+                opacity: refining || !note.trim() ? 0.5 : 1,
+                cursor: refining || !note.trim() ? 'default' : 'pointer',
+              }}
+            >
+              Send
+            </button>
+          </div>
+        </div>
 
         {error && (
           <div

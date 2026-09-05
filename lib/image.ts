@@ -42,3 +42,13 @@ export async function prepareImage(file: File): Promise<{ dataUrl: string; blob:
     return { dataUrl: await readAsDataUrl(file), blob: file };
   }
 }
+
+/** Turns a `data:` URL back into a Blob for upload or re-analysis. */
+export function dataUrlToBlob(dataUrl: string): Blob {
+  const [header, body] = dataUrl.split(',');
+  const mime = /:(.*?);/.exec(header)?.[1] ?? 'image/jpeg';
+  const binary = atob(body);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return new Blob([bytes], { type: mime });
+}

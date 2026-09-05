@@ -40,6 +40,11 @@ export type Analysis = {
   fat: number;
 } & Micros;
 
+/** One entry in the correction conversation on the Result screen. */
+export type RefineTurn =
+  | { role: 'user'; text: string }
+  | { role: 'model'; text: string; analysis: Analysis };
+
 /** Held between a successful AI call and "Log This Meal". */
 export type PendingScan = {
   analysis: Analysis;
