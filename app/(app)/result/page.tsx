@@ -56,6 +56,8 @@ export default function ResultScreen() {
 
   const values = corrected ?? pending.analysis;
   const name = editedName ?? values.name ?? 'Meal';
+  // A scan parked in sessionStorage before the breakdown shipped has no items.
+  const items = values.items ?? [];
 
   function setField(key: keyof Analysis, value: number) {
     setCorrected({ ...values, [key]: value });
@@ -200,7 +202,7 @@ export default function ResultScreen() {
         />
 
         {/* Per-item breakdown behind the totals */}
-        {values.items.length > 0 && (
+        {items.length > 0 && (
           <>
             <SectionTitle>Breakdown</SectionTitle>
             <div
@@ -214,7 +216,7 @@ export default function ResultScreen() {
                 gap: 12,
               }}
             >
-              {values.items.map((item, i) => (
+              {items.map((item, i) => (
                 <div key={`${item.name}-${i}`} style={{ display: 'flex', gap: 12, alignItems: 'baseline' }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div

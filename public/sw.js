@@ -1,7 +1,6 @@
 /* Tracked service worker — app-shell caching for "Add to Home Screen". */
-const VERSION = 'tracked-v1';
+const VERSION = 'tracked-v2';
 const STATIC_CACHE = `${VERSION}-static`;
-const PAGE_CACHE = `${VERSION}-pages`;
 
 const PRECACHE = [
   '/offline',
@@ -53,18 +52,10 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Pages: network first so signed-in data stays fresh, cache as a fallback.
+  // Pages are never cached: they are per-user and the server marks them
+  // no-store. A cached copy would survive sign-out and could be served to
+  // whoever opens the app next, with stale numbers. Offline gets the shell.
   if (request.mode === 'navigate') {
-    event.respondWith(
-      fetch(request)
-        .then((res) => {
-          const copy = res.clone();
-          caches.open(PAGE_CACHE).then((c) => c.put(request, copy));
-          return res;
-        })
-        .catch(() =>
-          caches.match(request).then((hit) => hit || caches.match('/offline')),
-        ),
-    );
+    event.respondWith(fetch(request).catch(() => caches.match('/offline')));
   }
 });

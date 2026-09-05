@@ -7,6 +7,21 @@ import { Avatar, Button, SectionTitle, Toggle, useNumberDraft } from '@/componen
 import { useApp } from '@/lib/store';
 import type { Goals } from '@/lib/types';
 
+/** Underlined text field used inside the profile card. */
+const underlineField = {
+  width: '100%',
+  boxSizing: 'border-box' as const,
+  background: 'transparent',
+  border: 0,
+  borderBottom: '1px solid var(--gray-400)',
+  color: '#fff',
+  fontSize: 17,
+  lineHeight: '24px',
+  fontWeight: 600,
+  padding: '4px 0',
+  outline: 'none',
+};
+
 function GoalField({
   label,
   value,
@@ -45,6 +60,7 @@ export default function SettingsScreen() {
 
   const [goals, setGoals] = useState<Goals>(state.goals);
   const [name, setName] = useState(state.profile.name);
+  const [dietPlan, setDietPlan] = useState(state.profile.dietPlan);
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -54,7 +70,7 @@ export default function SettingsScreen() {
     setBusy(true);
     setError(null);
     try {
-      await saveProfileAndGoals({ ...state.profile, name }, goals);
+      await saveProfileAndGoals({ ...state.profile, name, dietPlan }, goals);
       setSaved(true);
       setTimeout(() => setSaved(false), 1500);
     } catch (err) {
@@ -94,26 +110,28 @@ export default function SettingsScreen() {
           }}
         >
           <Avatar size={56} initial={(name.charAt(0) || 'A').toUpperCase()} />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 4 }}>Name</div>
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              aria-label="Name"
-              style={{
-                width: '100%',
-                boxSizing: 'border-box',
-                background: 'transparent',
-                border: 0,
-                borderBottom: '1px solid var(--gray-400)',
-                color: '#fff',
-                fontSize: 17,
-                lineHeight: '24px',
-                fontWeight: 600,
-                padding: '4px 0',
-                outline: 'none',
-              }}
-            />
+          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div>
+              <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 4 }}>Name</div>
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                aria-label="Name"
+                style={underlineField}
+              />
+            </div>
+            <div>
+              <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                Diet plan
+              </div>
+              <input
+                value={dietPlan}
+                onChange={(e) => setDietPlan(e.target.value)}
+                aria-label="Diet plan"
+                placeholder="Lean Bulk"
+                style={underlineField}
+              />
+            </div>
           </div>
         </div>
 

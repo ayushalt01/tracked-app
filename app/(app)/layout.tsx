@@ -9,8 +9,13 @@ import type { GoalsRow, MealRow, ProfileRow } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
-/** Meals older than this are not needed by Home (today) or Analysis (7 days). */
-const HISTORY_DAYS = 30;
+/**
+ * How much history the app keeps in memory. Home needs today and the Analysis
+ * chart needs 7 days, but its "Meal History" list shows everything it is
+ * given — so this is the real bound on that list. Kept to a season so the
+ * payload stays small on a phone.
+ */
+const HISTORY_DAYS = 90;
 
 /** Validates the browser-supplied timezone before handing it to Intl. */
 function resolveTimeZone(value: string | undefined): string {
@@ -43,7 +48,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       .eq('user_id', user.id)
       .gte('logged_at', since.toISOString())
       .order('logged_at', { ascending: false })
-      .limit(500),
+      .limit(1000),
   ]);
 
   let profile = profileRes.data as ProfileRow | null;

@@ -18,7 +18,10 @@ function readAsDataUrl(blob: Blob): Promise<string> {
  */
 export async function prepareImage(file: File): Promise<{ dataUrl: string; blob: Blob }> {
   try {
-    const bitmap = await createImageBitmap(file);
+    // Phone cameras record orientation in EXIF rather than rotating the
+    // pixels; without this a portrait photo reaches the AI (and storage)
+    // lying on its side.
+    const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
     const scale = Math.min(1, MAX_DIM / Math.max(bitmap.width, bitmap.height));
     const width = Math.round(bitmap.width * scale);
     const height = Math.round(bitmap.height * scale);
