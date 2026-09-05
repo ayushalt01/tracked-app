@@ -81,7 +81,7 @@ export default function ResultScreen() {
 
     try {
       const form = new FormData();
-      form.append('image', dataUrlToBlob(pending.photo), 'meal.jpg');
+      if (pending.photo) form.append('image', dataUrlToBlob(pending.photo), 'meal.jpg');
       form.append('note', text);
       form.append('current', JSON.stringify(values));
       form.append('history', JSON.stringify(turns));
@@ -120,9 +120,13 @@ export default function ResultScreen() {
 
   return (
     <Frame active="scan">
-      {/* Photo header */}
-      <div style={{ position: 'relative', width: '100%', height: 320 }}>
-        <img src={pending.photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+      {/* Photo header — or a plain one for text and barcode entries */}
+      <div style={{ position: 'relative', width: '100%', height: pending.photo ? 320 : 180 }}>
+        {pending.photo ? (
+          <img src={pending.photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        ) : (
+          <div style={{ width: '100%', height: '100%', background: 'var(--surface-scan)' }} />
+        )}
         <div
           style={{
             position: 'absolute',
@@ -143,7 +147,11 @@ export default function ResultScreen() {
               fontWeight: 600,
             }}
           >
-            AI Estimated
+            {pending.source === 'barcode'
+              ? 'From Barcode'
+              : pending.source === 'text'
+                ? 'AI Estimated · Described'
+                : 'AI Estimated'}
           </div>
           <input
             value={name}
@@ -330,6 +338,8 @@ export default function ResultScreen() {
         )}
 
         {/* Correction — one line in, one line back */}
+        {pending.source !== 'barcode' && (
+          <>
         <SectionTitle>Not quite right?</SectionTitle>
         <div style={{ marginTop: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
           <input
@@ -389,6 +399,8 @@ export default function ResultScreen() {
           >
             {refining ? 'Re-estimating…' : lastReply}
           </div>
+        )}
+          </>
         )}
 
         {error && (

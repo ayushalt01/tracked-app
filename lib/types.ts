@@ -58,7 +58,10 @@ export type RefineTurn =
 /** Held between a successful AI call and "Log This Meal". */
 export type PendingScan = {
   analysis: Analysis;
-  photo: string;
+  /** Data URL of the meal photo, or null when logged by text or barcode. */
+  photo: string | null;
+  /** Where the estimate came from, shown as the eyebrow on the result screen. */
+  source?: 'photo' | 'text' | 'barcode';
 };
 
 export type AppState = {

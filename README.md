@@ -61,11 +61,13 @@ Sign up at `/login`, then scan a meal.
 app/
   (app)/                  authenticated screens; layout loads state from Supabase
     home/                 daily dashboard — remaining calories, macros, today's meals
-    scan/                 photo capture → POST /api/analyze-meal
+    scan/                 four ways to log: photo, text description, barcode, repeat
     result/               AI estimate, editable name, expandable micronutrients
     analysis/             7-day calorie chart, daily averages, meal history
     settings/             profile, daily goals, reminders, clear data, sign out
-  api/analyze-meal/       server-only Gemini call (GEMINI_API_KEY never ships to the client)
+  api/analyze-meal/       server-only Gemini call, from a photo or a text description
+  api/refine-meal/        applies a written correction and re-estimates
+  api/product/            barcode lookup against Open Food Facts (free, no key)
   login/                  email + password auth
   offline/                service-worker fallback page
 components/               phone shell, bottom nav, macro cards, icons
@@ -78,6 +80,21 @@ scripts/generate-icons.mjs  regenerates the PWA icons (`npm run icons`)
 
 Photos are downscaled to 1024px in the browser before analysis and upload, which keeps
 the Gemini request small and stays inside Supabase's free storage tier.
+
+## Logging a meal
+
+Four ways, because photographing a coffee is silly:
+
+| Method | Cost | When |
+| --- | --- | --- |
+| **Photo** | one Gemini call | a plated meal you cannot easily describe |
+| **Describe** | one Gemini call | snacks and drinks — "two eggs and toast" |
+| **Barcode** | no AI at all | packaged food; values come off the label, so they are exact |
+| **Recent** | no AI at all | one tap to re-log something you eat often |
+
+Barcode scanning decodes in the browser with `@zxing/browser` (iOS has no
+`BarcodeDetector`), then looks the product up in Open Food Facts — free, no API
+key, no account.
 
 ## Notes on the design reference
 

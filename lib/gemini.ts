@@ -49,6 +49,27 @@ export const ANALYZE_PROMPT = [
   'name "Not a meal".',
 ].join('\n');
 
+export const DESCRIBE_PROMPT = [
+  'You are a nutrition estimation assistant. The user has described what they ate in their own',
+  'words. Estimate its nutrition.',
+  '',
+  'Work carefully before answering:',
+  '1. If they named a recognisable standard or branded item, use its known published nutrition',
+  '   values at the portion they described.',
+  '2. Otherwise break the description into components and estimate each portion in grams, using',
+  '   any quantities or sizes they gave. Where they did not specify a portion, assume one typical',
+  '   adult serving and say so in the description.',
+  '3. Account for cooking fats and dressings implied by the preparation they described.',
+  '',
+  'Respond with ONLY valid JSON (no markdown fences, no commentary) matching exactly this schema:',
+  SCHEMA,
+  UNITS,
+  ITEMS_RULE,
+  '"name" should be a short (2-5 word) title for what they ate. "description" should be one short',
+  'sentence stating the portions you assumed.',
+  'If the text does not describe food, return the schema with zeros and name "Not a meal".',
+].join('\n');
+
 const REFINE_SCHEMA =
   '{"reply": string, "name": string, "description": string, ' + ITEMS_FIELD +
   '"calories": number, "protein": number, "carbs": number, "fat": number, "fiber": number, "sugar": number, "sodium": number, "potassium": number, "calcium": number, "iron": number, "vitaminC": number}';

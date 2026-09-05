@@ -16,7 +16,8 @@ type Ctx = {
   timeZone: string;
   /** Today's YYYY-MM-DD in `timeZone`, resolved once on the server. */
   today: string;
-  logMeal: (analysis: Analysis, name: string, photoDataUrl: string) => Promise<void>;
+  logMeal: (analysis: Analysis, name: string, photoDataUrl: string | null) => Promise<void>;
+  repeatMeal: (meal: Meal) => Promise<void>;
   updateMeal: (id: string, patch: MealEdit) => Promise<void>;
   deleteMeal: (meal: Meal) => Promise<void>;
   saveProfileAndGoals: (profile: Profile, goals: Goals) => Promise<void>;
@@ -74,10 +75,12 @@ export function AppStateProvider({
   }
 
   const logMeal = useCallback(
-    async (analysis: Analysis, name: string, photoDataUrl: string) => {
+    async (analysis: Analysis, name: string, photoDataUrl: string | null) => {
       // 1. Photo → Supabase Storage, so the meal row carries a durable URL.
+      //    Text and barcode entries have no photo and skip this entirely.
       let photoUrl: string | null = null;
       try {
+        if (!photoDataUrl) throw new Error('no photo');
         const blob = dataUrlToBlob(photoDataUrl);
         const ext = blob.type === 'image/png' ? 'png' : 'jpg';
         const path = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
@@ -123,6 +126,39 @@ export function AppStateProvider({
     [router, supabase, userId, timeZone],
   );
 
+  const repeatMeal = useCallback(
+    async (meal: Meal) => {
+      const { data, error } = await supabase
+        .from('meals')
+        .insert({
+          user_id: userId,
+          name: meal.name,
+          description: meal.description,
+          photo_url: meal.photo,
+          calories: meal.calories,
+          protein: meal.protein,
+          carbs: meal.carbs,
+          fat: meal.fat,
+          fiber: meal.micros.fiber,
+          sugar: meal.micros.sugar,
+          sodium: meal.micros.sodium,
+          potassium: meal.micros.potassium,
+          calcium: meal.micros.calcium,
+          iron: meal.micros.iron,
+          vitamin_c: meal.micros.vitaminC,
+          logged_at: new Date().toISOString(),
+        })
+        .select()
+        .single();
+
+      if (error) throw new Error(error.message);
+
+      setState((s) => ({ ...s, meals: [mealFromRow(data as MealRow, timeZone), ...s.meals] }));
+      router.refresh();
+    },
+    [router, supabase, userId, timeZone],
+  );
+
   const updateMeal = useCallback(
     async (id: string, patch: MealEdit) => {
       const clean = {
@@ -153,10 +189,18 @@ export function AppStateProvider({
       if (error) throw new Error(error.message);
 
       // Drop the photo too, so deleting a meal does not leave the storage
-      // bucket filling up with files nothing points at.
+      // bucket filling up with files nothing points at — unless a repeated
+      // meal still points at the same file.
       const path = meal.photo?.split('/storage/v1/object/public/meal-photos/')[1];
       if (path) {
-        await supabase.storage.from('meal-photos').remove([decodeURIComponent(path)]);
+        const { count } = await supabase
+          .from('meals')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', userId)
+          .eq('photo_url', meal.photo);
+        if (!count) {
+          await supabase.storage.from('meal-photos').remove([decodeURIComponent(path)]);
+        }
       }
 
       router.refresh();
@@ -209,9 +253,9 @@ export function AppStateProvider({
   const value = useMemo<Ctx>(
     () => ({
       state, userId, email, timeZone, today,
-      logMeal, updateMeal, deleteMeal, saveProfileAndGoals, setNotifications, clearMeals, signOut,
+      logMeal, repeatMeal, updateMeal, deleteMeal, saveProfileAndGoals, setNotifications, clearMeals, signOut,
     }),
-    [state, userId, email, timeZone, today, logMeal, updateMeal, deleteMeal,
+    [state, userId, email, timeZone, today, logMeal, repeatMeal, updateMeal, deleteMeal,
      saveProfileAndGoals, setNotifications, clearMeals, signOut],
   );
 
