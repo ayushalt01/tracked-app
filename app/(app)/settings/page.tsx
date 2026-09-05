@@ -3,7 +3,7 @@
 import { useState } from 'react';
 
 import { Frame } from '@/components/Shell';
-import { Avatar, Button, SectionTitle, Toggle } from '@/components/ui';
+import { Avatar, Button, SectionTitle, Toggle, useNumberDraft } from '@/components/ui';
 import { useApp } from '@/lib/store';
 import type { Goals } from '@/lib/types';
 
@@ -22,11 +22,8 @@ function GoalField({
         {label}
       </div>
       <input
-        type="number"
-        inputMode="numeric"
-        min={0}
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value) || 0)}
+        type="text"
+        {...useNumberDraft(value, onChange)}
         style={{
           width: '100%',
           boxSizing: 'border-box',

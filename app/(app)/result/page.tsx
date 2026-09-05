@@ -34,13 +34,13 @@ export default function ResultScreen() {
   const [corrected, setCorrected] = useState<Analysis | null>(null);
   const [editedName, setEditedName] = useState<string | null>(null);
   const [turns, setTurns] = useState<RefineTurn[]>([]);
+  const [lastReply, setLastReply] = useState<string | null>(null);
   const [note, setNote] = useState('');
   const [refining, setRefining] = useState(false);
   const [microOpen, setMicroOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const leaving = useRef(false);
-  const chatEnd = useRef<HTMLDivElement>(null);
 
   // Landing here with no scan at all (a direct link, or a discarded one) means
   // start over. Re-read the store directly: on a reload the hydration render
@@ -90,6 +90,7 @@ export default function ResultScreen() {
 
       setCorrected(payload.analysis as Analysis);
       setEditedName(null); // let a re-identified dish rename itself
+      setLastReply(payload.reply);
       setTurns([...sent, { role: 'model', text: payload.reply, analysis: payload.analysis }]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not apply that correction.');
@@ -97,7 +98,6 @@ export default function ResultScreen() {
       setNote(text);
     } finally {
       setRefining(false);
-      requestAnimationFrame(() => chatEnd.current?.scrollIntoView({ behavior: 'smooth' }));
     }
   }
 
@@ -199,6 +199,57 @@ export default function ResultScreen() {
           onChange={(key, v) => setField(key, v)}
         />
 
+        {/* Per-item breakdown behind the totals */}
+        {values.items.length > 0 && (
+          <>
+            <SectionTitle>Breakdown</SectionTitle>
+            <div
+              style={{
+                marginTop: 12,
+                background: 'var(--gray-500)',
+                borderRadius: 'var(--radius-lg)',
+                padding: 16,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 12,
+              }}
+            >
+              {values.items.map((item, i) => (
+                <div key={`${item.name}-${i}`} style={{ display: 'flex', gap: 12, alignItems: 'baseline' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div
+                      style={{
+                        fontSize: 15,
+                        lineHeight: '22px',
+                        fontWeight: 600,
+                        color: 'var(--text-primary)',
+                      }}
+                    >
+                      {item.name}
+                    </div>
+                    {item.amount && (
+                      <div style={{ fontSize: 13, lineHeight: '19px', color: 'var(--text-secondary)' }}>
+                        {item.amount}
+                      </div>
+                    )}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 15,
+                      lineHeight: '22px',
+                      fontWeight: 700,
+                      color: 'var(--text-primary)',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {Math.round(item.calories)} kcal
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
         {/* Micronutrients */}
         <button
           onClick={() => setMicroOpen((v) => !v)}
@@ -276,117 +327,67 @@ export default function ResultScreen() {
           </div>
         )}
 
-        {/* Correction chat */}
+        {/* Correction — one line in, one line back */}
         <SectionTitle>Not quite right?</SectionTitle>
-        <div
-          style={{
-            marginTop: 12,
-            background: 'var(--gray-500)',
-            borderRadius: 'var(--radius-lg)',
-            padding: 16,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 12,
-          }}
-        >
-          {turns.length === 0 && !refining && (
-            <div style={{ fontSize: 13, lineHeight: '19px', color: 'var(--text-secondary)' }}>
-              Tell me what&rsquo;s off and I&rsquo;ll re-estimate — portion size, a missed ingredient,
-              how it was cooked. You can also tap any number above to set it yourself.
-            </div>
-          )}
-
-          {turns.map((turn, i) => (
-            <div
-              key={i}
-              style={{
-                alignSelf: turn.role === 'user' ? 'flex-end' : 'flex-start',
-                maxWidth: '85%',
-                padding: '8px 12px',
-                borderRadius: 12,
-                fontSize: 13,
-                lineHeight: '19px',
-                background: turn.role === 'user' ? 'var(--primary-100)' : 'rgba(255,255,255,0.07)',
-                color: turn.role === 'user' ? '#fff' : 'var(--text-primary)',
-              }}
-            >
-              {turn.text}
-            </div>
-          ))}
-
-          {refining && (
-            <div
-              style={{
-                alignSelf: 'flex-start',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                fontSize: 13,
-                color: 'var(--text-secondary)',
-              }}
-            >
-              <span
-                style={{
-                  width: 14,
-                  height: 14,
-                  borderRadius: '50%',
-                  border: '2px solid rgba(255,255,255,0.25)',
-                  borderTopColor: '#fff',
-                  animation: 'tracked-spin 0.8s linear infinite',
-                  display: 'inline-block',
-                }}
-              />
-              Re-estimating…
-            </div>
-          )}
-          <div ref={chatEnd} />
-
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <input
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  sendCorrection();
-                }
-              }}
-              placeholder="e.g. it was 2 eggs, no oil"
-              aria-label="Correction"
-              disabled={refining}
-              style={{
-                flex: 1,
-                minWidth: 0,
-                background: 'var(--gray-600)',
-                border: '1px solid var(--gray-400)',
-                borderRadius: 'var(--radius-md)',
-                padding: '10px 12px',
-                color: '#fff',
-                fontSize: 15,
-                outline: 'none',
-              }}
-            />
-            <button
-              onClick={sendCorrection}
-              disabled={refining || !note.trim()}
-              style={{
-                flexShrink: 0,
-                height: 40,
-                padding: '0 16px',
-                borderRadius: 'var(--radius-md)',
-                border: 0,
-                background: 'var(--primary-100)',
-                color: '#fff',
-                fontSize: 15,
-                fontWeight: 600,
-                opacity: refining || !note.trim() ? 0.5 : 1,
-                cursor: refining || !note.trim() ? 'default' : 'pointer',
-              }}
-            >
-              Send
-            </button>
-          </div>
+        <div style={{ marginTop: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
+          <input
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                sendCorrection();
+              }
+            }}
+            placeholder="e.g. I only ate half"
+            aria-label="Correction"
+            disabled={refining}
+            style={{
+              flex: 1,
+              minWidth: 0,
+              background: 'var(--gray-500)',
+              border: '1px solid var(--gray-400)',
+              borderRadius: 'var(--radius-md)',
+              padding: '12px 16px',
+              color: '#fff',
+              fontSize: 15,
+              outline: 'none',
+            }}
+          />
+          <button
+            onClick={sendCorrection}
+            disabled={refining || !note.trim()}
+            aria-label="Send correction"
+            style={{
+              flexShrink: 0,
+              height: 46,
+              padding: '0 18px',
+              borderRadius: 'var(--radius-md)',
+              border: 0,
+              background: 'var(--primary-100)',
+              color: '#fff',
+              fontSize: 15,
+              fontWeight: 600,
+              opacity: refining || !note.trim() ? 0.5 : 1,
+              cursor: refining || !note.trim() ? 'default' : 'pointer',
+            }}
+          >
+            Send
+          </button>
         </div>
+
+        {(refining || lastReply) && (
+          <div
+            style={{
+              marginTop: 8,
+              fontSize: 13,
+              lineHeight: '19px',
+              color: 'var(--text-secondary)',
+            }}
+          >
+            {refining ? 'Re-estimating…' : lastReply}
+          </div>
+        )}
 
         {error && (
           <div

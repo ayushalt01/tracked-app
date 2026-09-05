@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 
 export const macroColors = {
@@ -176,6 +177,38 @@ export function MacroRow({
   );
 }
 
+// ----------------------------------------------------------- numeric input --
+
+/**
+ * Editing behaviour for a numeric field.
+ *
+ * The field is driven by a string draft while it has focus, so it can be
+ * cleared and retyped. Coercing every keystroke straight to a number puts a
+ * stuck `0` in the box the moment you delete the last digit, which makes
+ * typing a new value nearly impossible.
+ */
+export function useNumberDraft(value: number, onChange: (v: number) => void) {
+  const [draft, setDraft] = useState<string | null>(null);
+
+  return {
+    value: draft ?? String(value),
+    inputMode: 'decimal' as const,
+    onChange: (e: React.ChangeEvent<HTMLInputElement>) => {
+      const text = e.target.value;
+      if (!/^\d*\.?\d*$/.test(text)) return; // reject anything but a number
+      setDraft(text);
+      if (text !== '') {
+        const n = Number(text);
+        if (Number.isFinite(n)) onChange(n);
+      }
+    },
+    onBlur: () => {
+      if (draft === '') onChange(0); // left empty means zero
+      setDraft(null);
+    },
+  };
+}
+
 // ------------------------------------------------------------ InlineNumber --
 
 /**
@@ -196,16 +229,13 @@ export function InlineNumber({
   underline: string;
   style?: CSSProperties;
 }) {
-  const shown = Number.isFinite(value) ? value : 0;
+  const field = useNumberDraft(Number.isFinite(value) ? value : 0, onChange);
   return (
     <input
-      type="number"
-      inputMode="decimal"
-      min={0}
-      value={String(shown)}
+      type="text"
       aria-label={label}
-      onChange={(e) => onChange(Math.max(0, Number(e.target.value) || 0))}
       onFocus={(e) => e.target.select()}
+      {...field}
       style={{
         font: 'inherit',
         color: 'inherit',
@@ -215,7 +245,7 @@ export function InlineNumber({
         outline: 'none',
         padding: 0,
         borderRadius: 0,
-        width: `${Math.max(1, String(shown).length)}ch`,
+        width: `${Math.max(1, field.value.length)}ch`,
         ...style,
       }}
     />

@@ -3,6 +3,14 @@ export type MicroKey =
 
 export type Micros = Record<MicroKey, number>;
 
+/** One food component the AI identified in the photo. */
+export type MealItem = {
+  name: string;
+  /** Estimated portion, as the model phrased it — "120 g", "1 cup", "2 slices". */
+  amount: string;
+  calories: number;
+};
+
 export type Goals = {
   calories: number;
   protein: number;
@@ -34,6 +42,8 @@ export type Meal = {
 export type Analysis = {
   name: string;
   description: string;
+  /** Per-component breakdown behind the totals below. */
+  items: MealItem[];
   calories: number;
   protein: number;
   carbs: number;

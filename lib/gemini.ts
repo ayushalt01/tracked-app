@@ -1,6 +1,6 @@
 import 'server-only';
 
-import type { Analysis } from './types';
+import type { Analysis, MealItem } from './types';
 
 /** Gemini's free tier. Overridable via GEMINI_MODEL. */
 export const MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
@@ -10,8 +10,18 @@ const ATTEMPT_TIMEOUT_MS = 25_000;
 const MAX_ATTEMPTS = 3;
 const RETRY_BACKOFF_MS = 1_500;
 
+const ITEMS_FIELD = '"items": [{"name": string, "amount": string, "calories": number}], ';
+
 const SCHEMA =
-  '{"name": string, "description": string, "calories": number, "protein": number, "carbs": number, "fat": number, "fiber": number, "sugar": number, "sodium": number, "potassium": number, "calcium": number, "iron": number, "vitaminC": number}';
+  '{"name": string, "description": string, ' + ITEMS_FIELD +
+  '"calories": number, "protein": number, "carbs": number, "fat": number, "fiber": number, "sugar": number, "sodium": number, "potassium": number, "calcium": number, "iron": number, "vitaminC": number}';
+
+const ITEMS_RULE = [
+  '"items" is the breakdown behind your totals: one entry per distinct food component you can',
+  'identify, with "amount" as the estimated portion in the most natural unit ("120 g", "1 cup",',
+  '"2 slices", "1 tbsp") and "calories" for that component alone. List sauces, dressings and',
+  'cooking oil as their own entries. The item calories must add up to the "calories" total.',
+].join('\n');
 
 const UNITS =
   'Units: calories in kcal; protein, carbs, fat, fiber, sugar in grams; sodium, potassium, calcium in milligrams; iron in milligrams; vitaminC in milligrams.';
@@ -32,13 +42,16 @@ export const ANALYZE_PROMPT = [
   'Respond with ONLY valid JSON (no markdown fences, no commentary) matching exactly this schema:',
   SCHEMA,
   UNITS,
+  ITEMS_RULE,
   '"name" should be a short (2-5 word) title for the dish. "description" should be one short sentence',
-  'that names the main components and their approximate portions, so the estimate can be sanity-checked.',
-  'If the photo does not show food, still return the schema with zeros and name "Not a meal".',
+  'describing the dish.',
+  'If the photo does not show food, still return the schema with zeros, an empty "items" array and',
+  'name "Not a meal".',
 ].join('\n');
 
 const REFINE_SCHEMA =
-  '{"reply": string, "name": string, "description": string, "calories": number, "protein": number, "carbs": number, "fat": number, "fiber": number, "sugar": number, "sodium": number, "potassium": number, "calcium": number, "iron": number, "vitaminC": number}';
+  '{"reply": string, "name": string, "description": string, ' + ITEMS_FIELD +
+  '"calories": number, "protein": number, "carbs": number, "fat": number, "fiber": number, "sugar": number, "sodium": number, "potassium": number, "calcium": number, "iron": number, "vitaminC": number}';
 
 export const REFINE_PROMPT = [
   'The user is correcting your estimate. Apply their correction and re-estimate the whole meal,',
@@ -47,6 +60,7 @@ export const REFINE_PROMPT = [
   'Respond with ONLY valid JSON (no markdown fences, no commentary) matching exactly this schema:',
   REFINE_SCHEMA,
   UNITS,
+  ITEMS_RULE,
   '"reply" is one short sentence, addressed to the user, saying what you changed and why.',
   'Every other field is the full updated estimate, not just the changed parts.',
 ].join('\n');
@@ -73,12 +87,30 @@ function toNumber(value: unknown): number {
   return Math.round(n * 10) / 10;
 }
 
+const MAX_ITEMS = 20;
+
+function normalizeItems(raw: unknown): MealItem[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .slice(0, MAX_ITEMS)
+    .map((entry) => {
+      const o = (entry ?? {}) as Record<string, unknown>;
+      return {
+        name: String(o.name ?? '').trim().slice(0, 60),
+        amount: String(o.amount ?? '').trim().slice(0, 30),
+        calories: toNumber(o.calories),
+      };
+    })
+    .filter((item) => item.name.length > 0);
+}
+
 /** Coerces the model's output into the exact Analysis shape the app expects. */
 export function normalizeAnalysis(raw: unknown): Analysis {
   const o = (raw ?? {}) as Record<string, unknown>;
   const out = {
     name: String(o.name ?? '').trim().slice(0, 80) || 'Meal',
     description: String(o.description ?? '').trim().slice(0, 300),
+    items: normalizeItems(o.items),
   } as Analysis;
   for (const key of NUMERIC_FIELDS) out[key] = toNumber(o[key]);
   return out;
