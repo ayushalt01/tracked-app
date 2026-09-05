@@ -3,9 +3,11 @@
 /* eslint-disable @next/next/no-img-element */
 import type { Meal } from '@/lib/types';
 import { fmtTime } from '@/lib/data';
+import { useApp } from '@/lib/store';
 
 /** List row shared by Home ("Today's Meals") and Analysis ("Meal History"). */
 export function MealRow({ meal, showMacros }: { meal: Meal; showMacros?: boolean }) {
+  const { timeZone } = useApp();
   return (
     <div
       style={{
@@ -41,7 +43,7 @@ export function MealRow({ meal, showMacros }: { meal: Meal; showMacros?: boolean
           {meal.name}
         </div>
         <div style={{ fontSize: 13, lineHeight: '19px', color: 'var(--text-secondary)' }}>
-          {fmtTime(meal.ts)}
+          {fmtTime(meal.ts, timeZone)}
           {showMacros && ` · P:${meal.protein}g C:${meal.carbs}g F:${meal.fat}g`}
         </div>
       </div>

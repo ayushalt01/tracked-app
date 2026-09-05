@@ -16,7 +16,33 @@ export const MICRO_DEFS: { key: MicroKey; label: string; unit: string }[] = [
   { key: 'vitaminC', label: 'Vitamin C', unit: 'mg' },
 ];
 
-/** Local-calendar date key, matching the prototype's `dateISO`. */
+/**
+ * Every date in this app is a *calendar day in the user's timezone*, never the
+ * runtime's. The server renders in UTC on Vercel while the phone is on local
+ * time, so deriving a day from `new Date()` on both sides puts an evening meal
+ * on tomorrow for the server and today for the phone — and it vanishes from
+ * the daily count. The timezone is carried from the browser in a cookie and
+ * threaded through every helper below.
+ */
+export const FALLBACK_TIME_ZONE = 'UTC';
+
+/** The YYYY-MM-DD calendar date of an instant, in the given timezone. */
+export function isoInTimeZone(date: Date, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '01';
+  return `${get('year')}-${get('month')}-${get('day')}`;
+}
+
+export function todayInTimeZone(timeZone: string): string {
+  return isoInTimeZone(new Date(), timeZone);
+}
+
+/** Local-calendar date key for a Date, using the runtime's own timezone. */
 export function isoFromDate(d: Date): string {
   return (
     d.getFullYear() +
@@ -25,8 +51,15 @@ export function isoFromDate(d: Date): string {
   );
 }
 
-export function todayISO(): string {
-  return isoFromDate(new Date());
+/** Shifts a YYYY-MM-DD key by whole days without touching local time. */
+export function addDays(iso: string, days: number): string {
+  const [y, m, d] = iso.split('-').map(Number);
+  const shifted = new Date(Date.UTC(y, m - 1, d) + days * 86_400_000);
+  return (
+    shifted.getUTCFullYear() +
+    '-' + String(shifted.getUTCMonth() + 1).padStart(2, '0') +
+    '-' + String(shifted.getUTCDate()).padStart(2, '0')
+  );
 }
 
 export function greeting(): string {
@@ -36,28 +69,26 @@ export function greeting(): string {
   return 'Good Evening';
 }
 
-export function fmtTime(ts: number): string {
-  const d = new Date(ts);
-  let h = d.getHours();
-  const m = d.getMinutes();
-  const ampm = h >= 12 ? 'PM' : 'AM';
-  h = h % 12;
-  if (h === 0) h = 12;
-  return h + ':' + String(m).padStart(2, '0') + ' ' + ampm;
+export function fmtTime(ts: number, timeZone: string): string {
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  }).format(new Date(ts));
 }
 
+/** Weekday for a YYYY-MM-DD key — parsed as UTC so it cannot drift. */
 export function dayLabel(iso: string): string {
-  const d = new Date(iso + 'T00:00:00');
-  return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()];
+  const [y, m, d] = iso.split('-').map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][date.getUTCDay()];
 }
 
-export function last7Days(): string[] {
+/** The 7 calendar days ending on `today`, oldest first. */
+export function last7DaysFrom(today: string): string[] {
   const out: string[] = [];
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    out.push(isoFromDate(d));
-  }
+  for (let i = 6; i >= 0; i--) out.push(addDays(today, -i));
   return out;
 }
 
@@ -76,12 +107,12 @@ export function sumMeals(meals: Meal[]) {
 
 // ------------------------------------------------------------- row mappers --
 
-export function mealFromRow(row: MealRow): Meal {
+export function mealFromRow(row: MealRow, timeZone: string): Meal {
   const ts = new Date(row.logged_at).getTime();
   return {
     id: row.id,
     ts,
-    dateISO: isoFromDate(new Date(ts)),
+    dateISO: isoInTimeZone(new Date(ts), timeZone),
     name: row.name,
     description: row.description,
     photo: row.photo_url,
@@ -138,6 +169,7 @@ export function stateFromRows(
   profile: ProfileRow | null,
   goals: GoalsRow | null,
   meals: MealRow[],
+  timeZone: string,
 ): AppState {
   return {
     profile: {
@@ -146,6 +178,6 @@ export function stateFromRows(
     },
     goals: goalsFromRow(goals),
     notifications: profile?.notifications_enabled ?? true,
-    meals: meals.map(mealFromRow),
+    meals: meals.map((row) => mealFromRow(row, timeZone)),
   };
 }

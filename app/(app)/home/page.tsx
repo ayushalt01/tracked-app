@@ -5,14 +5,14 @@ import { useRouter } from 'next/navigation';
 import { Frame } from '@/components/Shell';
 import { MealRow } from '@/components/MealRow';
 import { Avatar, EmptyState, MacroRow, SectionTitle } from '@/components/ui';
-import { greeting, sumMeals, todayISO } from '@/lib/data';
+import { greeting, sumMeals } from '@/lib/data';
 import { mealsOnDay, useApp } from '@/lib/store';
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { state } = useApp();
+  const { state, today } = useApp();
 
-  const todaysMeals = mealsOnDay(state.meals, todayISO());
+  const todaysMeals = mealsOnDay(state.meals, today);
   const totals = sumMeals(todaysMeals);
   const remaining = Math.max(0, state.goals.calories - totals.calories);
 

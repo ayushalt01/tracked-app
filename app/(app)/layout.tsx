@@ -1,7 +1,9 @@
+import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 
+import { TimezoneCookie } from '@/components/TimezoneCookie';
 import { AppStateProvider } from '@/lib/store';
-import { stateFromRows } from '@/lib/data';
+import { FALLBACK_TIME_ZONE, stateFromRows, todayInTimeZone } from '@/lib/data';
 import { createClient } from '@/lib/supabase/server';
 import type { GoalsRow, MealRow, ProfileRow } from '@/lib/types';
 
@@ -10,8 +12,21 @@ export const dynamic = 'force-dynamic';
 /** Meals older than this are not needed by Home (today) or Analysis (7 days). */
 const HISTORY_DAYS = 30;
 
+/** Validates the browser-supplied timezone before handing it to Intl. */
+function resolveTimeZone(value: string | undefined): string {
+  if (!value) return FALLBACK_TIME_ZONE;
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: value });
+    return value;
+  } catch {
+    return FALLBACK_TIME_ZONE;
+  }
+}
+
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
+  const cookieStore = await cookies();
+  const timeZone = resolveTimeZone(cookieStore.get('tracked_tz')?.value);
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
@@ -52,10 +67,17 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     goals = data as GoalsRow | null;
   }
 
-  const initial = stateFromRows(profile, goals, (mealsRes.data ?? []) as MealRow[]);
+  const initial = stateFromRows(profile, goals, (mealsRes.data ?? []) as MealRow[], timeZone);
 
   return (
-    <AppStateProvider initial={initial} userId={user.id} email={user.email ?? ''}>
+    <AppStateProvider
+      initial={initial}
+      userId={user.id}
+      email={user.email ?? ''}
+      timeZone={timeZone}
+      today={todayInTimeZone(timeZone)}
+    >
+      <TimezoneCookie />
       {children}
     </AppStateProvider>
   );

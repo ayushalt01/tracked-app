@@ -12,6 +12,10 @@ type Ctx = {
   state: AppState;
   userId: string;
   email: string;
+  /** IANA zone the user is in; all day and time formatting uses it. */
+  timeZone: string;
+  /** Today's YYYY-MM-DD in `timeZone`, resolved once on the server. */
+  today: string;
   logMeal: (analysis: Analysis, name: string, photoDataUrl: string) => Promise<void>;
   saveProfileAndGoals: (profile: Profile, goals: Goals) => Promise<void>;
   setNotifications: (on: boolean) => Promise<void>;
@@ -31,16 +35,32 @@ export function AppStateProvider({
   initial,
   userId,
   email,
+  timeZone,
+  today,
   children,
 }: {
   initial: AppState;
   userId: string;
   email: string;
+  timeZone: string;
+  today: string;
   children: React.ReactNode;
 }) {
   const [state, setState] = useState<AppState>(initial);
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
+
+  // The server is the source of truth: adopt a fresh `initial` whenever the
+  // layout re-renders (router.refresh(), a navigation, the timezone cookie
+  // landing). Without this the provider would keep its first snapshot forever
+  // and, after a timezone correction, filter today's meals against stale
+  // day keys. This is React's documented adjust-state-during-render pattern —
+  // it re-renders immediately instead of flashing the wrong numbers.
+  const [serverState, setServerState] = useState(initial);
+  if (serverState !== initial) {
+    setServerState(initial);
+    setState(initial);
+  }
 
   const logMeal = useCallback(
     async (analysis: Analysis, name: string, photoDataUrl: string) => {
@@ -85,11 +105,11 @@ export function AppStateProvider({
 
       if (error) throw new Error(error.message);
 
-      const meal: Meal = mealFromRow(data as MealRow);
+      const meal: Meal = mealFromRow(data as MealRow, timeZone);
       setState((s) => ({ ...s, meals: [meal, ...s.meals] }));
       router.refresh();
     },
-    [router, supabase, userId],
+    [router, supabase, userId, timeZone],
   );
 
   const saveProfileAndGoals = useCallback(
@@ -135,8 +155,11 @@ export function AppStateProvider({
   }, [router, supabase]);
 
   const value = useMemo<Ctx>(
-    () => ({ state, userId, email, logMeal, saveProfileAndGoals, setNotifications, clearMeals, signOut }),
-    [state, userId, email, logMeal, saveProfileAndGoals, setNotifications, clearMeals, signOut],
+    () => ({
+      state, userId, email, timeZone, today,
+      logMeal, saveProfileAndGoals, setNotifications, clearMeals, signOut,
+    }),
+    [state, userId, email, timeZone, today, logMeal, saveProfileAndGoals, setNotifications, clearMeals, signOut],
   );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

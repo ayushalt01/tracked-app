@@ -3,16 +3,16 @@
 import { Frame } from '@/components/Shell';
 import { MealRow } from '@/components/MealRow';
 import { EmptyState, MacroRow, SectionTitle } from '@/components/ui';
-import { dayLabel, isoFromDate, last7Days, sumMeals, todayISO } from '@/lib/data';
+import { addDays, dayLabel, last7DaysFrom, sumMeals } from '@/lib/data';
 import { useApp } from '@/lib/store';
 import type { Meal } from '@/lib/types';
 
 const CHART_HEIGHT = 140;
 
 export default function AnalysisScreen() {
-  const { state } = useApp();
+  const { state, today } = useApp();
 
-  const days = last7Days();
+  const days = last7DaysFrom(today);
   const byDay = days.map((iso) => {
     const meals = state.meals.filter((m) => m.dateISO === iso);
     return { iso, meals, totals: sumMeals(meals) };
@@ -33,12 +33,7 @@ export default function AnalysisScreen() {
 
   const maxCal = Math.max(state.goals.calories, ...byDay.map((d) => d.totals.calories), 1);
 
-  const today = todayISO();
-  const yesterday = (() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 1);
-    return isoFromDate(d);
-  })();
+  const yesterday = addDays(today, -1);
 
   function dateHeading(iso: string) {
     if (iso === today) return 'Today';
