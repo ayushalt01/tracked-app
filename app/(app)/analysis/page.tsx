@@ -1,7 +1,10 @@
 'use client';
 
+import { useState } from 'react';
+
 import { Frame } from '@/components/Shell';
 import { MealRow } from '@/components/MealRow';
+import { MealSheet } from '@/components/MealSheet';
 import { EmptyState, MacroRow, SectionTitle } from '@/components/ui';
 import { addDays, dayLabel, last7DaysFrom, sumMeals } from '@/lib/data';
 import { useApp } from '@/lib/store';
@@ -11,6 +14,7 @@ const CHART_HEIGHT = 140;
 
 export default function AnalysisScreen() {
   const { state, today } = useApp();
+  const [editing, setEditing] = useState<Meal | null>(null);
 
   const days = last7DaysFrom(today);
   const byDay = days.map((iso) => {
@@ -52,8 +56,13 @@ export default function AnalysisScreen() {
     group.meals.push(meal);
   }
 
+  const editingMeal = editing ? (state.meals.find((m) => m.id === editing.id) ?? null) : null;
+
   return (
-    <Frame active="analysis">
+    <Frame
+      active="analysis"
+      overlay={editingMeal && <MealSheet meal={editingMeal} onClose={() => setEditing(null)} />}
+    >
       <div style={{ padding: '16px 20px 0 20px' }}>
         <div style={{ fontSize: 24, lineHeight: '36px', fontWeight: 700, color: 'var(--text-primary)' }}>
           Analysis
@@ -125,7 +134,7 @@ export default function AnalysisScreen() {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {group.meals.map((meal) => (
-                  <MealRow key={meal.id} meal={meal} showMacros />
+                  <MealRow key={meal.id} meal={meal} showMacros onSelect={setEditing} />
                 ))}
               </div>
             </div>

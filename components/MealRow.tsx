@@ -6,10 +6,32 @@ import { fmtTime } from '@/lib/data';
 import { useApp } from '@/lib/store';
 
 /** List row shared by Home ("Today's Meals") and Analysis ("Meal History"). */
-export function MealRow({ meal, showMacros }: { meal: Meal; showMacros?: boolean }) {
+export function MealRow({
+  meal,
+  showMacros,
+  onSelect,
+}: {
+  meal: Meal;
+  showMacros?: boolean;
+  /** When given, the row opens the edit sheet. */
+  onSelect?: (meal: Meal) => void;
+}) {
   const { timeZone } = useApp();
   return (
     <div
+      role={onSelect ? 'button' : undefined}
+      tabIndex={onSelect ? 0 : undefined}
+      onClick={onSelect ? () => onSelect(meal) : undefined}
+      onKeyDown={
+        onSelect
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onSelect(meal);
+              }
+            }
+          : undefined
+      }
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -17,6 +39,8 @@ export function MealRow({ meal, showMacros }: { meal: Meal; showMacros?: boolean
         background: 'var(--gray-500)',
         borderRadius: 'var(--radius-md)',
         padding: 12,
+        cursor: onSelect ? 'pointer' : undefined,
+        textAlign: 'left',
       }}
     >
       {meal.photo ? (

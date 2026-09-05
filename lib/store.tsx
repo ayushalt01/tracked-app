@@ -17,10 +17,21 @@ type Ctx = {
   /** Today's YYYY-MM-DD in `timeZone`, resolved once on the server. */
   today: string;
   logMeal: (analysis: Analysis, name: string, photoDataUrl: string) => Promise<void>;
+  updateMeal: (id: string, patch: MealEdit) => Promise<void>;
+  deleteMeal: (meal: Meal) => Promise<void>;
   saveProfileAndGoals: (profile: Profile, goals: Goals) => Promise<void>;
   setNotifications: (on: boolean) => Promise<void>;
   clearMeals: () => Promise<void>;
   signOut: () => Promise<void>;
+};
+
+/** The fields a logged meal can be corrected to after the fact. */
+export type MealEdit = {
+  name: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
 };
 
 const AppContext = createContext<Ctx | null>(null);
@@ -112,6 +123,47 @@ export function AppStateProvider({
     [router, supabase, userId, timeZone],
   );
 
+  const updateMeal = useCallback(
+    async (id: string, patch: MealEdit) => {
+      const clean = {
+        name: patch.name.trim() || 'Meal',
+        calories: Math.max(0, Math.round(patch.calories)),
+        protein: Math.max(0, Math.round(patch.protein)),
+        carbs: Math.max(0, Math.round(patch.carbs)),
+        fat: Math.max(0, Math.round(patch.fat)),
+      };
+
+      setState((s) => ({
+        ...s,
+        meals: s.meals.map((m) => (m.id === id ? { ...m, ...clean } : m)),
+      }));
+
+      const { error } = await supabase.from('meals').update(clean).eq('id', id).eq('user_id', userId);
+      if (error) throw new Error(error.message);
+      router.refresh();
+    },
+    [router, supabase, userId],
+  );
+
+  const deleteMeal = useCallback(
+    async (meal: Meal) => {
+      setState((s) => ({ ...s, meals: s.meals.filter((m) => m.id !== meal.id) }));
+
+      const { error } = await supabase.from('meals').delete().eq('id', meal.id).eq('user_id', userId);
+      if (error) throw new Error(error.message);
+
+      // Drop the photo too, so deleting a meal does not leave the storage
+      // bucket filling up with files nothing points at.
+      const path = meal.photo?.split('/storage/v1/object/public/meal-photos/')[1];
+      if (path) {
+        await supabase.storage.from('meal-photos').remove([decodeURIComponent(path)]);
+      }
+
+      router.refresh();
+    },
+    [router, supabase, userId],
+  );
+
   const saveProfileAndGoals = useCallback(
     async (profile: Profile, goals: Goals) => {
       setState((s) => ({ ...s, profile, goals }));
@@ -157,9 +209,10 @@ export function AppStateProvider({
   const value = useMemo<Ctx>(
     () => ({
       state, userId, email, timeZone, today,
-      logMeal, saveProfileAndGoals, setNotifications, clearMeals, signOut,
+      logMeal, updateMeal, deleteMeal, saveProfileAndGoals, setNotifications, clearMeals, signOut,
     }),
-    [state, userId, email, timeZone, today, logMeal, saveProfileAndGoals, setNotifications, clearMeals, signOut],
+    [state, userId, email, timeZone, today, logMeal, updateMeal, deleteMeal,
+     saveProfileAndGoals, setNotifications, clearMeals, signOut],
   );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

@@ -169,6 +169,7 @@ export function Frame({
   active,
   showNav = true,
   fill = false,
+  overlay,
   children,
 }: {
   bg?: string;
@@ -176,6 +177,8 @@ export function Frame({
   showNav?: boolean;
   /** Screen lays itself out to the viewport (Scan) — no trailing nav spacer. */
   fill?: boolean;
+  /** Sheets and dialogs, rendered above the scroll area and the nav. */
+  overlay?: ReactNode;
   children: ReactNode;
 }) {
   return (
@@ -186,6 +189,7 @@ export function Frame({
         {!fill && <div style={{ height: showNav ? 118 : 24 }} />}
       </div>
       {showNav && <BottomNav active={active} />}
+      {overlay}
     </PhoneShell>
   );
 }

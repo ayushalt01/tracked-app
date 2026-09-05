@@ -1,23 +1,33 @@
 'use client';
 
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { Frame } from '@/components/Shell';
 import { MealRow } from '@/components/MealRow';
+import { MealSheet } from '@/components/MealSheet';
 import { Avatar, EmptyState, MacroRow, SectionTitle } from '@/components/ui';
 import { greeting, sumMeals } from '@/lib/data';
 import { mealsOnDay, useApp } from '@/lib/store';
+import type { Meal } from '@/lib/types';
 
 export default function HomeScreen() {
   const router = useRouter();
   const { state, today } = useApp();
+  const [editing, setEditing] = useState<Meal | null>(null);
 
   const todaysMeals = mealsOnDay(state.meals, today);
   const totals = sumMeals(todaysMeals);
   const remaining = Math.max(0, state.goals.calories - totals.calories);
 
+  // The sheet holds a snapshot; re-read from state so it follows an edit.
+  const editingMeal = editing ? (state.meals.find((m) => m.id === editing.id) ?? null) : null;
+
   return (
-    <Frame active="home">
+    <Frame
+      active="home"
+      overlay={editingMeal && <MealSheet meal={editingMeal} onClose={() => setEditing(null)} />}
+    >
       <div style={{ padding: '16px 20px 0 20px' }}>
         {/* Header row */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -92,7 +102,7 @@ export default function HomeScreen() {
             <EmptyState>No meals logged yet. Scan a photo to add one.</EmptyState>
           )}
           {todaysMeals.map((meal) => (
-            <MealRow key={meal.id} meal={meal} />
+            <MealRow key={meal.id} meal={meal} onSelect={setEditing} />
           ))}
         </div>
       </div>
