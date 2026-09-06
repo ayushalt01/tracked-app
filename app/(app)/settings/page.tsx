@@ -4,8 +4,9 @@ import { useState } from 'react';
 
 import { Frame } from '@/components/Shell';
 import { Avatar, Button, SectionTitle, Toggle, useNumberDraft } from '@/components/ui';
+import { Segmented } from '@/components/Segmented';
 import { useApp } from '@/lib/store';
-import type { Goals } from '@/lib/types';
+import type { Goals, WeightUnit } from '@/lib/types';
 
 /** Underlined text field used inside the profile card. */
 const underlineField = {
@@ -61,6 +62,7 @@ export default function SettingsScreen() {
   const [goals, setGoals] = useState<Goals>(state.goals);
   const [name, setName] = useState(state.profile.name);
   const [dietPlan, setDietPlan] = useState(state.profile.dietPlan);
+  const [weightUnit, setWeightUnit] = useState<WeightUnit>(state.profile.weightUnit);
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -70,7 +72,7 @@ export default function SettingsScreen() {
     setBusy(true);
     setError(null);
     try {
-      await saveProfileAndGoals({ ...state.profile, name, dietPlan }, goals);
+      await saveProfileAndGoals({ ...state.profile, name, dietPlan, weightUnit }, goals);
       setSaved(true);
       setTimeout(() => setSaved(false), 1500);
     } catch (err) {
@@ -195,6 +197,26 @@ export default function SettingsScreen() {
 
         {/* Preferences */}
         <SectionTitle>Preferences</SectionTitle>
+        <div
+          style={{
+            marginTop: 12,
+            background: 'var(--gray-500)',
+            borderRadius: 'var(--radius-lg)',
+            padding: '16px 20px',
+          }}
+        >
+          <div style={{ fontSize: 15, lineHeight: '22px', color: 'var(--text-primary)', fontWeight: 500, marginBottom: 10 }}>
+            Weight unit
+          </div>
+          <Segmented
+            options={[{ key: 'lb' as const, label: 'Pounds' }, { key: 'kg' as const, label: 'Kilograms' }]}
+            value={weightUnit}
+            onChange={setWeightUnit}
+          />
+          <div style={{ marginTop: 8, fontSize: 13, lineHeight: '19px', color: 'var(--text-secondary)' }}>
+            Saved with the rest of your goals above.
+          </div>
+        </div>
         <div
           style={{
             marginTop: 12,

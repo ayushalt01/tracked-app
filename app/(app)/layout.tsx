@@ -5,7 +5,7 @@ import { TimezoneCookie } from '@/components/TimezoneCookie';
 import { AppStateProvider } from '@/lib/store';
 import { FALLBACK_TIME_ZONE, stateFromRows, todayInTimeZone } from '@/lib/data';
 import { createClient } from '@/lib/supabase/server';
-import type { GoalsRow, MealRow, ProfileRow } from '@/lib/types';
+import type { GoalsRow, MealRow, ProfileRow, WeightRow } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,6 +16,9 @@ export const dynamic = 'force-dynamic';
  * payload stays small on a phone.
  */
 const HISTORY_DAYS = 90;
+
+/** Weight rows are tiny, so keep enough to show a meaningful trend. */
+const WEIGHT_DAYS = 180;
 
 /** Validates the browser-supplied timezone before handing it to Intl. */
 function resolveTimeZone(value: string | undefined): string {
@@ -39,7 +42,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const since = new Date();
   since.setDate(since.getDate() - HISTORY_DAYS);
 
-  const [profileRes, goalsRes, mealsRes] = await Promise.all([
+  const weightsSince = new Date();
+  weightsSince.setDate(weightsSince.getDate() - WEIGHT_DAYS);
+
+  const [profileRes, goalsRes, mealsRes, weightsRes] = await Promise.all([
     supabase.from('profiles').select('*').eq('user_id', user.id).maybeSingle(),
     supabase.from('goals').select('*').eq('user_id', user.id).maybeSingle(),
     supabase
@@ -49,6 +55,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       .gte('logged_at', since.toISOString())
       .order('logged_at', { ascending: false })
       .limit(1000),
+    supabase
+      .from('weights')
+      .select('*')
+      .eq('user_id', user.id)
+      .gte('logged_on', weightsSince.toISOString().slice(0, 10))
+      .order('logged_on', { ascending: false })
+      .limit(400),
   ]);
 
   let profile = profileRes.data as ProfileRow | null;
@@ -72,7 +85,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     goals = data as GoalsRow | null;
   }
 
-  const initial = stateFromRows(profile, goals, (mealsRes.data ?? []) as MealRow[], timeZone);
+  const initial = stateFromRows(
+    profile,
+    goals,
+    (mealsRes.data ?? []) as MealRow[],
+    (weightsRes.data ?? []) as WeightRow[],
+    timeZone,
+  );
 
   return (
     <AppStateProvider

@@ -26,16 +26,18 @@ cp .env.local.example .env.local
 
 ### 2. Database
 
-Run `supabase/migrations/0001_init.sql` against your project — paste it into the
-Supabase SQL editor, or with the CLI:
+Run the files in `supabase/migrations/` in order against your project — paste them
+into the Supabase SQL editor, or with the CLI:
 
 ```bash
 supabase db push
 ```
 
-It creates `profiles`, `goals` and `meals` with row-level security (each user sees
-only their own rows), a trigger that seeds a profile + default goals on signup, and
-the public `meal-photos` storage bucket with owner-scoped write policies.
+`0001_init.sql` creates `profiles`, `goals` and `meals` with row-level security (each
+user sees only their own rows), a trigger that seeds a profile + default goals on
+signup, and the public `meal-photos` storage bucket with owner-scoped write policies.
+`0002_weights.sql` adds bodyweight tracking — one reading per calendar day, plus a
+lb/kg display preference.
 
 ### 3. Run
 
@@ -95,6 +97,21 @@ Four ways, because photographing a coffee is silly:
 Barcode scanning decodes in the browser with `@zxing/browser` (iOS has no
 `BarcodeDetector`), then looks the product up in Open Food Facts — free, no API
 key, no account.
+
+## Weight and the feedback loop
+
+Bodyweight is stored in kilograms and converted for display, so switching units never
+rewrites history. Two different statistics come off it, deliberately:
+
+- **The trend weight** shown as the headline is a 7-day trailing average. Daily weight
+  is mostly water and timing, and the average is the number worth reacting to.
+- **The weekly rate** is a least-squares fit over the *raw* readings, not the smoothed
+  ones. A trailing average lags the true line and biases the slope low — about double
+  the error over three-to-six week windows when measured against synthetic data with a
+  known rate.
+
+Pairing that rate with average intake ("+0.4 lb/week on 2,900 kcal/day") is the point
+of the screen: it says whether the current intake is doing what you want.
 
 ## Notes on the design reference
 

@@ -18,9 +18,20 @@ export type Goals = {
   fat: number;
 } & Micros;
 
+export type WeightUnit = 'lb' | 'kg';
+
 export type Profile = {
   name: string;
   dietPlan: string;
+  weightUnit: WeightUnit;
+};
+
+/** One bodyweight reading, one per local calendar day. */
+export type WeightEntry = {
+  id: string;
+  /** YYYY-MM-DD in the user's timezone. */
+  dateISO: string;
+  kg: number;
 };
 
 /** One logged meal, in the prototype's client-side shape. */
@@ -69,6 +80,7 @@ export type AppState = {
   goals: Goals;
   notifications: boolean;
   meals: Meal[];
+  weights: WeightEntry[];
 };
 
 /** Row shapes as stored in Postgres (snake_case). */
@@ -97,6 +109,14 @@ export type ProfileRow = {
   name: string;
   diet_plan: string;
   notifications_enabled: boolean;
+  weight_unit: WeightUnit | null;
+};
+
+export type WeightRow = {
+  id: string;
+  user_id: string;
+  logged_on: string;
+  weight_kg: number | string;
 };
 
 export type GoalsRow = {

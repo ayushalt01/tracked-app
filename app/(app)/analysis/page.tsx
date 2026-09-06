@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { Frame } from '@/components/Shell';
 import { MealRow } from '@/components/MealRow';
 import { MealSheet } from '@/components/MealSheet';
+import { WeightCard } from '@/components/WeightCard';
 import { EmptyState, MacroRow, SectionTitle } from '@/components/ui';
 import { addDays, dayLabel, last7DaysFrom, sumMeals } from '@/lib/data';
 import { useApp } from '@/lib/store';
@@ -68,6 +69,10 @@ export default function AnalysisScreen() {
           Analysis
         </div>
 
+        <WeightCard avgCalories={activeDays > 0 && weekTotals.days > 0
+          ? Math.round(weekTotals.calories / activeDays)
+          : null} />
+
         {/* 7-day calorie chart */}
         <div
           style={{
@@ -80,7 +85,9 @@ export default function AnalysisScreen() {
           <div style={{ fontSize: 15, lineHeight: '22px', color: 'var(--text-secondary)', marginBottom: 16 }}>
             Calories, last 7 days
           </div>
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, height: CHART_HEIGHT }}>
+          {/* No fixed height here: each column is the bar box plus its label,
+              so pinning the row to the bar height made them overflow upward. */}
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10 }}>
             {byDay.map((d) => {
               const h = Math.max(4, (d.totals.calories / maxCal) * CHART_HEIGHT);
               const overGoal = d.totals.calories > state.goals.calories;

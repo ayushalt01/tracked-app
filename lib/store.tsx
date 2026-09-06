@@ -4,9 +4,9 @@ import { createContext, useCallback, useContext, useMemo, useState } from 'react
 import { useRouter } from 'next/navigation';
 
 import { createClient } from '@/lib/supabase/client';
-import { goalsToRow, mealFromRow, MICRO_DEFS } from '@/lib/data';
+import { goalsToRow, mealFromRow, MICRO_DEFS, weightFromRow } from '@/lib/data';
 import { dataUrlToBlob } from '@/lib/image';
-import type { AppState, Analysis, Goals, Meal, MealRow, Profile } from '@/lib/types';
+import type { AppState, Analysis, Goals, Meal, MealRow, Profile, WeightRow } from '@/lib/types';
 
 type Ctx = {
   state: AppState;
@@ -21,6 +21,7 @@ type Ctx = {
   updateMeal: (id: string, patch: MealEdit) => Promise<void>;
   deleteMeal: (meal: Meal) => Promise<void>;
   saveProfileAndGoals: (profile: Profile, goals: Goals) => Promise<void>;
+  logWeight: (kg: number, dateISO: string) => Promise<void>;
   setNotifications: (on: boolean) => Promise<void>;
   clearMeals: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -208,6 +209,30 @@ export function AppStateProvider({
     [router, supabase, userId],
   );
 
+  const logWeight = useCallback(
+    async (kg: number, dateISO: string) => {
+      // One reading per day: weighing twice replaces, it does not stack.
+      const { data, error } = await supabase
+        .from('weights')
+        .upsert(
+          { user_id: userId, logged_on: dateISO, weight_kg: Math.round(kg * 100) / 100 },
+          { onConflict: 'user_id,logged_on' },
+        )
+        .select()
+        .single();
+
+      if (error) throw new Error(error.message);
+
+      const entry = weightFromRow(data as WeightRow);
+      setState((s) => ({
+        ...s,
+        weights: [entry, ...s.weights.filter((w) => w.dateISO !== entry.dateISO)],
+      }));
+      router.refresh();
+    },
+    [router, supabase, userId],
+  );
+
   const saveProfileAndGoals = useCallback(
     async (profile: Profile, goals: Goals) => {
       setState((s) => ({ ...s, profile, goals }));
@@ -215,7 +240,12 @@ export function AppStateProvider({
       const [{ error: pErr }, { error: gErr }] = await Promise.all([
         supabase
           .from('profiles')
-          .update({ name: profile.name, diet_plan: profile.dietPlan, updated_at: new Date().toISOString() })
+          .update({
+            name: profile.name,
+            diet_plan: profile.dietPlan,
+            weight_unit: profile.weightUnit,
+            updated_at: new Date().toISOString(),
+          })
           .eq('user_id', userId),
         supabase
           .from('goals')
@@ -253,10 +283,11 @@ export function AppStateProvider({
   const value = useMemo<Ctx>(
     () => ({
       state, userId, email, timeZone, today,
-      logMeal, repeatMeal, updateMeal, deleteMeal, saveProfileAndGoals, setNotifications, clearMeals, signOut,
+      logMeal, repeatMeal, updateMeal, deleteMeal, logWeight,
+      saveProfileAndGoals, setNotifications, clearMeals, signOut,
     }),
     [state, userId, email, timeZone, today, logMeal, repeatMeal, updateMeal, deleteMeal,
-     saveProfileAndGoals, setNotifications, clearMeals, signOut],
+     logWeight, saveProfileAndGoals, setNotifications, clearMeals, signOut],
   );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

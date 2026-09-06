@@ -1,4 +1,6 @@
-import type { AppState, Goals, Meal, MealRow, GoalsRow, MicroKey, ProfileRow } from './types';
+import type {
+  AppState, Goals, Meal, MealRow, GoalsRow, MicroKey, ProfileRow, WeightEntry, WeightRow,
+} from './types';
 
 export const DEFAULT_GOALS: Goals = {
   calories: 2000, protein: 150, carbs: 220, fat: 65,
@@ -105,6 +107,66 @@ export function sumMeals(meals: Meal[]) {
   );
 }
 
+// ------------------------------------------------------------------ weight --
+
+export const KG_PER_LB = 0.45359237;
+
+export function kgToUnit(kg: number, unit: 'lb' | 'kg'): number {
+  return unit === 'kg' ? kg : kg / KG_PER_LB;
+}
+
+export function unitToKg(value: number, unit: 'lb' | 'kg'): number {
+  return unit === 'kg' ? value : value * KG_PER_LB;
+}
+
+/**
+ * Daily bodyweight is mostly noise — water, food in transit, time of day. A
+ * trailing average is what actually shows the trend, so every number the
+ * Analysis screen reports is derived from this rather than raw readings.
+ */
+export function trailingAverage(
+  weights: WeightEntry[],
+  windowDays = 7,
+): { dateISO: string; kg: number }[] {
+  const sorted = [...weights].sort((a, b) => a.dateISO.localeCompare(b.dateISO));
+  return sorted.map((entry, i) => {
+    const from = addDays(entry.dateISO, -(windowDays - 1));
+    const window = sorted.slice(0, i + 1).filter((w) => w.dateISO >= from);
+    const sum = window.reduce((acc, w) => acc + w.kg, 0);
+    return { dateISO: entry.dateISO, kg: sum / window.length };
+  });
+}
+
+/**
+ * Weight change per week, from the slope of a least-squares fit.
+ *
+ * Fit the *raw* readings, not the trailing average: least squares already
+ * handles the noise, while a trailing average lags the true line and biases
+ * the slope low — measured at roughly double the error over 3-6 week windows.
+ * Smoothing is for the number we display, not for the rate we infer.
+ */
+export function weeklyRateKg(readings: { dateISO: string; kg: number }[]): number | null {
+  if (readings.length < 4) return null;
+
+  const sorted = [...readings].sort((a, b) => a.dateISO.localeCompare(b.dateISO));
+  const [oy, om, od] = sorted[0].dateISO.split('-').map(Number);
+  const origin = Date.UTC(oy, om - 1, od);
+  const points = sorted.map((p) => {
+    const [y, m, d] = p.dateISO.split('-').map(Number);
+    return { x: (Date.UTC(y, m - 1, d) - origin) / 86_400_000, y: p.kg };
+  });
+
+  const n = points.length;
+  const sumX = points.reduce((a, p) => a + p.x, 0);
+  const sumY = points.reduce((a, p) => a + p.y, 0);
+  const sumXY = points.reduce((a, p) => a + p.x * p.y, 0);
+  const sumXX = points.reduce((a, p) => a + p.x * p.x, 0);
+  const denom = n * sumXX - sumX * sumX;
+  if (denom === 0) return null;
+
+  return ((n * sumXY - sumX * sumY) / denom) * 7;
+}
+
 // ------------------------------------------------------------- row mappers --
 
 export function mealFromRow(row: MealRow, timeZone: string): Meal {
@@ -165,19 +227,30 @@ export function goalsToRow(goals: Goals) {
   };
 }
 
+export function weightFromRow(row: WeightRow): WeightEntry {
+  return {
+    id: row.id,
+    dateISO: String(row.logged_on).slice(0, 10),
+    kg: Number(row.weight_kg),
+  };
+}
+
 export function stateFromRows(
   profile: ProfileRow | null,
   goals: GoalsRow | null,
   meals: MealRow[],
+  weights: WeightRow[],
   timeZone: string,
 ): AppState {
   return {
     profile: {
       name: profile?.name ?? 'Friend',
       dietPlan: profile?.diet_plan ?? 'My Plan',
+      weightUnit: profile?.weight_unit === 'kg' ? 'kg' : 'lb',
     },
     goals: goalsFromRow(goals),
     notifications: profile?.notifications_enabled ?? true,
     meals: meals.map((row) => mealFromRow(row, timeZone)),
+    weights: weights.map(weightFromRow),
   };
 }
